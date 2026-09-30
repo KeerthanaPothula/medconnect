@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# Editors
+.vscode/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Models downloaded at runtime (keep the folder)
+models/*
+!models/.gitkeep

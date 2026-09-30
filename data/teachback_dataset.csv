@@ -1,0 +1,5 @@
+id,instruction,key_points,patient_response,expected_label,source
+1,Take one paracetamol tablet every 6 hours after food for 3 days.,one tablet;every 6 hours;after food;3 days,I take one tablet every six hours after eating for three days.,understood,synthetic
+2,Take one paracetamol tablet every 6 hours after food for 3 days.,one tablet;every 6 hours;after food;3 days,I take the tablet when I feel pain.,needs_clarification,synthetic
+3,Drink plenty of water and come back if the fever lasts more than 2 days.,drink water;return if fever over 2 days,I should drink a lot of water and come back if fever stays after two days.,understood,synthetic
+4,Drink plenty of water and come back if the fever lasts more than 2 days.,drink water;return if fever over 2 days,I should drink water.,needs_clarification,synthetic
