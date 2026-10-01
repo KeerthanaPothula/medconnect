@@ -1,1 +1,2 @@
 streamlit>=1.39  # st.audio_input needs 1.39+; tested with 1.64.0
+langdetect==1.0.9

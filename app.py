@@ -1,9 +1,10 @@
-"""MedConnect Streamlit UI. Phase 1: layout only, no AI processing yet."""
+"""MedConnect Streamlit UI. Phase 2: language detection + rule-based medical extraction."""
 import streamlit as st
 
-from modules.language import LANGUAGES
+from modules.language import LANGUAGES, detect_language
+from modules.medical_nlp import extract_medical_info
 
-PENDING = "Not implemented yet (Phase 1 placeholder)."
+PENDING = "Not implemented yet (planned for a later phase)."
 
 st.set_page_config(page_title="MedConnect", page_icon="🩺", layout="wide")
 st.title("MEDCONNECT")
@@ -20,16 +21,39 @@ process = st.button("Process Patient Message", type="primary")
 st.header("2. Patient Analysis")
 if process:
     if patient_text.strip():
-        st.info(PENDING)
+        lang = detect_language(patient_text)
+        # Undetermined language on plain ASCII text (e.g. "fever 2 days") still gets a try with the English rules.
+        rules_lang = lang["code"] or ("en" if patient_text.isascii() else None)
+        st.session_state.analysis = {"lang": lang, "info": extract_medical_info(patient_text, rules_lang)}
     else:
+        st.session_state.pop("analysis", None)
         st.warning("Please enter a patient message first.")
+
+analysis = st.session_state.get("analysis")
 c1, c2 = st.columns(2)
-c1.text_input("Detected language", value="—", disabled=True)
-c2.text_input("English translation", value="—", disabled=True)
-st.text_area("Medical information", value="—", disabled=True)
-c3, c4 = st.columns(2)
-c3.text_input("Symptoms", value="—", disabled=True)
-c4.text_input("Duration", value="—", disabled=True)
+with c1:
+    st.markdown("**Detected Language:**")
+    st.write(analysis["lang"]["name"] if analysis else "—")
+with c2:
+    st.markdown("**English Translation:**")
+    st.caption("Placeholder — translation is planned for Phase 3.")
+
+st.markdown("**Medical Information:**")
+if analysis:
+    info = analysis["info"]
+    if not info["supported"]:
+        st.info("Rule-based extraction currently supports English text only. "
+                "Non-English messages will be analysed via their English translation in Phase 3.")
+    else:
+        c3, c4 = st.columns(2)
+        with c3:
+            st.markdown("Symptoms:")
+            st.markdown("\n".join(f"- {s}" for s in info["symptoms"]) or "No symptoms detected")
+        with c4:
+            st.markdown("Duration:")
+            st.write(info["duration"] or "No duration detected")
+else:
+    st.write("—")
 
 # SECTION 3 — Healthcare Worker
 st.header("3. Healthcare Worker")
