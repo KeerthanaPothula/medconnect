@@ -1,7 +1,9 @@
-"""MedConnect Streamlit UI. Phase 4: language detection, translation (IndicTrans2), medical extraction, teach-back."""
+"""MedConnect Streamlit UI. Phase 5: voice input (local Whisper), language detection, translation (IndicTrans2),
+medical extraction, teach-back."""
 import streamlit as st
 
-from modules.language import LANGUAGES, detect_language
+from modules.asr import transcribe_audio
+from modules.language import CODE_TO_NAME, LANGUAGES, detect_language
 from modules.medical_nlp import extract_medical_info
 from modules.teachback import NEEDS_CLARIFICATION, UNCERTAIN, UNDERSTOOD, verify_teachback
 from modules.translation import translate_from_english, translate_to_english
@@ -15,8 +17,23 @@ st.caption("Multilingual Healthcare Communication System — course-project prot
 # SECTION 1 — Patient
 st.header("1. Patient")
 patient_lang = st.selectbox("Patient language", list(LANGUAGES), key="patient_lang")
-patient_text = st.text_area("Describe your symptoms", key="patient_text")
-st.audio_input("Voice input (coming in a later phase)", disabled=True, key="patient_audio")
+audio = st.audio_input("Voice input: record, then stop. The speech is transcribed into the message box below.",
+                       key="patient_audio")
+# Transcribe each new recording once, before the text box is created so its text can be filled in.
+if audio is not None and audio.file_id != st.session_state.get("transcribed_id"):
+    st.session_state.transcribed_id = audio.file_id
+    with st.spinner("Transcribing... (the first recording loads the speech model and can take a minute)"):
+        st.session_state.asr_result = transcribe_audio(audio)
+    if st.session_state.asr_result["success"]:
+        st.session_state.patient_text = st.session_state.asr_result["text"]
+asr = st.session_state.get("asr_result")
+if asr and asr["success"]:
+    guess = CODE_TO_NAME.get(asr["language"], f"'{asr['language']}', not a supported language")
+    st.success(f"Transcribed locally with Whisper (its language guess: {guess}). "
+               "Check or correct the text, then click Process Patient Message.")
+elif asr:
+    st.warning(asr["error"])
+patient_text = st.text_area("Describe your symptoms (type, or use voice input above)", key="patient_text")
 process = st.button("Process Patient Message", type="primary")
 
 # SECTION 2 — Patient Analysis

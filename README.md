@@ -79,7 +79,7 @@ Worker instruction (English) ─▶ translate to selected patient language
 - Text is split into sentences on `. ! ? ।` and newlines; long rambling sentences are truncated at 256 tokens.
 - The models are gated on Hugging Face and need a one-time login (see below).
 
-**Phase 4 — teach-back verification (current):**
+**Phase 4 — teach-back verification (done):**
 
 *Teach-back* means the patient explains the healthcare worker's instruction back in their own words, so the
 worker can check that it was understood. In MedConnect this checks only whether the patient's reply reflects
@@ -117,11 +117,48 @@ Worker instruction (English) ─▶ translate to patient language ─▶ patient
 - Quality depends on the translation. The matcher only sees the English translation of the reply.
 - Negation handling is simple (a negation word shortly before the concept, in the same clause).
 
+**Phase 5 — voice input with local Whisper (current):**
+
+```
+Patient speaks ─▶ st.audio_input (WAV) ─▶ local Whisper ─▶ text in the message box (editable)
+   ─▶ Process Patient Message ─▶ existing language detection ─▶ IndicTrans2 ─▶ medical extraction
+```
+
+- `modules/asr.py` → `transcribe_audio(audio_data, language=None)` returns
+  `{"success", "text", "language", "error"}`. `language` is Whisper's own guess of the most likely
+  language, with no confidence score. You can also pass a code to force a language. It never raises.
+- **Runs locally, with no external or paid speech API**: the open-weights `openai/whisper-small` model
+  (about 0.97 GB) runs on this machine via the already-installed `transformers` and `torch`, so no new
+  packages were needed. Audio is decoded with Python's `wave` module (16-bit PCM WAV, which is what
+  `st.audio_input` records), so ffmpeg is not needed.
+- The model is downloaded once into `models/` (git-ignored) and loaded once per app process.
+- UI: Section 1 has both text input and voice input. When a recording is stopped, it is transcribed once
+  and the text is placed into the message box, where it can be corrected. **Process Patient Message**
+  then runs the unchanged Phase 2–3 pipeline. Whisper's language guess is shown for information. The
+  pipeline still uses `detect_language` on the text.
+- Errors (no or empty or silent audio, unreadable audio, model unavailable, transcription failure, no speech) are
+  shown as short messages. Typing still works.
+
+Measured on this development laptop (CPU only, Intel Iris Xe, 16 GB RAM), single runs:
+first load including download ≈ 72 s, later loads from disk ≈ 9 s, transcription of a 3-second clip ≈ 4–10 s.
+**This is not real-time.**
+
+**Known limitations of Phase 5**
+
+- **Only English has been tested with real audio**: one synthetic Windows-TTS clip
+  (`data/audio/en_headache_two_days.wav`), transcribed exactly. **Telugu, Hindi, Kannada and Tamil
+  speech have not been tested**, because no local TTS voices for them exist on the development machine.
+  Whisper-small is known to be weaker on these languages than on English. To test them, add synthetic
+  recordings as `data/audio/<lang>_<name>.wav` and run the real test below.
+- Transcription quality has **not been evaluated** and has **no clinical validation**.
+- Only the first 30 seconds of a recording are transcribed (Whisper's input window).
+- WAV input only (16-bit PCM). Other formats are rejected with a message.
+
 ## Modules
 
 | Module | Responsibility | Tech | Status |
 |---|---|---|---|
-| `modules/asr.py` | Speech-to-text | OpenAI Whisper | planned |
+| `modules/asr.py` | Speech-to-text | Whisper small, local (transformers) | **Phase 5** |
 | `modules/language.py` | Language detection | langdetect | **Phase 2** |
 | `modules/translation.py` | Indian language ↔ English | IndicTrans2 dist-200M (Hugging Face) | **Phase 3** |
 | `modules/medical_nlp.py` | Symptoms / duration extraction | regex rules (English) | **Phase 2** |
@@ -187,4 +224,5 @@ test is skipped by default. It downloads the models on first run:
 
 ```powershell
 $env:MEDCONNECT_REAL_MODEL = "1"; python -m unittest tests.test_translation_real -v
+$env:MEDCONNECT_REAL_MODEL = "1"; python -m unittest tests.test_asr_real -v   # Whisper, ~0.97 GB on first run
 ```
