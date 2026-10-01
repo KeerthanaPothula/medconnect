@@ -1,11 +1,11 @@
-"""MedConnect Streamlit UI. Phase 3: language detection, translation (IndicTrans2), medical extraction."""
+"""MedConnect Streamlit UI. Phase 4: language detection, translation (IndicTrans2), medical extraction, teach-back."""
 import streamlit as st
 
 from modules.language import LANGUAGES, detect_language
 from modules.medical_nlp import extract_medical_info
+from modules.teachback import NEEDS_CLARIFICATION, UNCERTAIN, UNDERSTOOD, verify_teachback
 from modules.translation import translate_from_english, translate_to_english
 
-PENDING = "Not implemented yet (planned for a later phase)."
 SPINNER = "Translating... (the first translation loads the model and can take a minute)"
 
 st.set_page_config(page_title="MedConnect", page_icon="🩺", layout="wide")
@@ -97,15 +97,41 @@ else:
 
 # SECTION 4 — Patient Teach-back
 st.header("4. Patient Teach-back")
+st.caption("The patient explains the Section 3 instruction back in their own words, in any supported language.")
 teachback = st.text_area("Patient's explanation in their own words", key="teachback")
 if st.button("Check Understanding"):
-    if teachback.strip():
-        st.info(PENDING)
-    else:
+    st.session_state.pop("teachback_result", None)
+    if not instruction.strip():
+        st.warning("Please enter the healthcare worker instruction in Section 3 first.")
+    elif not teachback.strip():
         st.warning("Please enter the patient's response first.")
-c5, c6 = st.columns(2)
-c5.text_input("Understanding status", value="—", disabled=True)
-c6.text_input("Similarity / result", value="—", disabled=True)
-c7, c8 = st.columns(2)
-c7.text_area("Important information", value="—", disabled=True)
-c8.text_area("Missing information", value="—", disabled=True)
+    else:
+        # Short replies often defeat language detection; fall back to the patient language chosen in Section 3.
+        code = detect_language(teachback)["code"] or LANGUAGES[target_lang]
+        with st.spinner(SPINNER):
+            tr = translate_to_english(teachback, code)
+        if tr["success"]:
+            st.session_state.teachback_result = {"english": tr["text"], "translated": code != "en",
+                                                 **verify_teachback(instruction, tr["text"])}
+        else:
+            st.warning(f"{tr['error']} The patient's response could not be translated, so understanding was not checked.")
+
+tb = st.session_state.get("teachback_result")
+if tb:
+    label = {UNDERSTOOD: (st.success, "✓ Understood"), NEEDS_CLARIFICATION: (st.warning, "⚠ Needs clarification"),
+             UNCERTAIN: (st.info, "? Uncertain")}
+    show, text = label[tb["status"]]
+    show(f"**{text}** — {tb['feedback']}")
+    if tb["translated"]:
+        st.markdown(f"**Patient response in English:** {tb['english']}")
+    if tb["score"] is not None:
+        st.markdown(f"**Key points matched:** {len(tb['matched_concepts'])} of "
+                    f"{len(tb['matched_concepts']) + len(tb['missing_concepts'])}")
+    c5, c6 = st.columns(2)
+    with c5:
+        st.markdown("**Matched concepts:**")
+        st.markdown("\n".join(f"- {c}" for c in tb["matched_concepts"]) or "None")
+    with c6:
+        st.markdown("**Missing concepts:**")
+        st.markdown("\n".join(f"- {c}" for c in tb["missing_concepts"]) or "None")
+    st.caption("Automatic keyword-based check, not a clinical assessment. Confirm understanding with the patient.")

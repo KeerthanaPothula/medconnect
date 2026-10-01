@@ -3,3 +3,11 @@ id,instruction,key_points,patient_response,expected_label,source
 2,Take one paracetamol tablet every 6 hours after food for 3 days.,one tablet;every 6 hours;after food;3 days,I take the tablet when I feel pain.,needs_clarification,synthetic
 3,Drink plenty of water and come back if the fever lasts more than 2 days.,drink water;return if fever over 2 days,I should drink a lot of water and come back if fever stays after two days.,understood,synthetic
 4,Drink plenty of water and come back if the fever lasts more than 2 days.,drink water;return if fever over 2 days,I should drink water.,needs_clarification,synthetic
+5,Take the medicine after food.,take medicine;after food,I will take the medicine after eating.,understood,synthetic
+6,Take the medicine after food.,take medicine;after food,I will take the medicine before food.,needs_clarification,synthetic
+7,Take the medicine after food.,take medicine;after food,"Okay, I will take the medicine.",needs_clarification,synthetic
+8,Take the medicine after food.,take medicine;after food,I will go to college tomorrow.,uncertain,synthetic
+9,Take two tablets twice a day for 5 days.,2 tablets;twice a day;5 days,I will take two tablets twice a day.,needs_clarification,synthetic
+10,Take two tablets twice a day for 5 days.,2 tablets;twice a day;5 days,I will take two tablets three times a day for five days.,needs_clarification,synthetic
+11,Take one tablet at night and rest.,one tablet;at night;rest,I take one tablet before sleeping and take rest.,understood,synthetic
+12,Take one tablet at night and rest.,one tablet;at night;rest,I will not take the tablet at night.,needs_clarification,synthetic

@@ -43,7 +43,7 @@ MedConnect helps a patient who speaks an Indian language and an English-speaking
 - `data/medical_samples.csv` is small, synthetic development data; its translations are not validated
   by native speakers and must not be treated as ground truth.
 
-**Phase 3 — translation (current):**
+**Phase 3 — translation (done):**
 
 English is the internal pivot language:
 
@@ -79,6 +79,44 @@ Worker instruction (English) ─▶ translate to selected patient language
 - Text is split into sentences on `. ! ? ।` and newlines; long rambling sentences are truncated at 256 tokens.
 - The models are gated on Hugging Face and need a one-time login (see below).
 
+**Phase 4 — teach-back verification (current):**
+
+*Teach-back* means the patient explains the healthcare worker's instruction back in their own words, so the
+worker can check that it was understood. In MedConnect this checks only whether the patient's reply reflects
+the instruction. **It is not a medical diagnosis or a clinical assessment.**
+
+```
+Worker instruction (English) ─▶ translate to patient language ─▶ patient replies in own language
+   ─▶ translate reply to English (skipped for English) ─▶ verify_teachback(instruction, reply) ─▶ result
+```
+
+- `modules/teachback.py` → `verify_teachback(instruction, patient_response)` returns
+  `{"status", "score", "matched_concepts", "missing_concepts", "contradictions", "feedback"}`.
+- Explainable concept matching, with no ML model and no LLM. Both texts are normalised (lowercase,
+  punctuation removed, number words → digits). Key concepts are then found with a small lexicon
+  (`CONCEPTS`): food timing (after/before food), time of day, frequency (once/twice a day, every N hours),
+  dose, duration, and actions (take medicine, drink fluids, rest, come back). Each instruction concept is
+  then classified as:
+  - **matched**: the reply has the same value ("after food" ≈ "after eating" ≈ "after a meal"),
+  - **contradicted**: the reply gives another value in the same group ("before food"), or negates it ("I will not take…"),
+  - **missing**: otherwise.
+- Result: **✓ Understood** when all key concepts match. **⚠ Needs clarification** when anything is
+  contradicted or missing; the missing points are listed. **? Uncertain** when the reply mentions none of
+  the key concepts, or the instruction contains no recognisable concept. `score` = matched / key concepts.
+- UI: Section 4 uses the Section 3 instruction and patient language. The reply's language is detected,
+  falling back to the Section 3 language for short replies.
+- `data/teachback_dataset.csv`: 12 **synthetic development examples** (correct, partially correct,
+  incorrect, missing information, unrelated). The tests check that every label is reproduced; this is a
+  regression check on hand-written examples, **not an accuracy measurement**.
+
+**Known limitations of Phase 4**
+
+- **No clinical validation** and no evaluation on real teach-back conversations has been performed.
+- The lexicon is small and English-only. Instructions outside it (e.g. prohibitions such as "do not drive",
+  diet advice) are reported as *Uncertain* or only partly checked. Unusual paraphrases are missed.
+- Quality depends on the translation. The matcher only sees the English translation of the reply.
+- Negation handling is simple (a negation word shortly before the concept, in the same clause).
+
 ## Modules
 
 | Module | Responsibility | Tech | Status |
@@ -87,7 +125,7 @@ Worker instruction (English) ─▶ translate to selected patient language
 | `modules/language.py` | Language detection | langdetect | **Phase 2** |
 | `modules/translation.py` | Indian language ↔ English | IndicTrans2 dist-200M (Hugging Face) | **Phase 3** |
 | `modules/medical_nlp.py` | Symptoms / duration extraction | regex rules (English) | **Phase 2** |
-| `modules/teachback.py` | Understanding verification | sentence-transformers | planned |
+| `modules/teachback.py` | Teach-back verification | rule-based concept matching | **Phase 4** |
 
 Heavy models will be optional: the app must still run (with clearly labelled fallback behaviour) if a model is unavailable.
 

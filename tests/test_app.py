@@ -103,6 +103,49 @@ class TestApp(unittest.TestCase):
         self.assertFalse(at.exception)
         self.assertIn("could not be translated", at.warning[0].value)
 
+    def _teachback(self, instruction, response, lang="English"):
+        at = AppTest.from_file("../app.py").run()
+        at.text_area(key="instruction").input(instruction)
+        at.selectbox(key="target_lang").select(lang)
+        at.text_area(key="teachback").input(response)
+        at.button[2].click().run()
+        self.assertFalse(at.exception)
+        return at
+
+    def test_teachback_understood(self):
+        at = self._teachback("Take the medicine after food.", "I will take the medicine after eating.")
+        self.assertIn("✓ Understood", at.success[0].value)
+        self.assertIn("- after food", " ".join(str(e.value) for e in at.markdown))
+
+    def test_teachback_needs_clarification(self):
+        at = self._teachback("Take the medicine after food.", "I will take the medicine before food.")
+        self.assertIn("⚠ Needs clarification", at.warning[0].value)
+        self.assertIn("before food", at.warning[0].value)
+        self.assertIn("- after food", " ".join(str(e.value) for e in at.markdown))  # listed as missing
+
+    def test_teachback_requires_instruction(self):
+        at = self._teachback("", "I will take the medicine.")
+        self.assertIn("Section 3", at.warning[0].value)
+
+    @patch.object(translation, "_load", return_value=object())
+    @patch.object(translation, "_generate", return_value=["I will take the medicine after eating."])
+    def test_teachback_telugu_response_is_translated(self, gen, load):
+        at = self._teachback("Take the medicine after food.", "నేను భోజనం తర్వాత మందు వేసుకుంటాను", "Telugu")
+        self.assertEqual(gen.call_args.args[2:], ("tel_Telu", "eng_Latn"))
+        self.assertIn("✓ Understood", at.success[0].value)
+        self.assertIn("I will take the medicine after eating.", " ".join(str(e.value) for e in at.markdown))
+
+    @patch.object(translation, "_load", side_effect=OSError("model not downloaded"))
+    def test_teachback_translation_unavailable(self, load):
+        at = AppTest.from_file("../app.py").run()
+        at.text_area(key="instruction").input("Take the medicine after food.")
+        at.text_area(key="teachback").input("నేను భోజనం తర్వాత మందు వేసుకుంటాను")
+        with self.assertLogs(translation.log):
+            at.button[2].click().run()
+        self.assertFalse(at.exception)
+        self.assertIn("understanding was not checked", at.warning[0].value)
+        self.assertFalse(at.success)
+
 
 if __name__ == "__main__":
     unittest.main()
