@@ -56,6 +56,20 @@ class TestVerifyTeachback(unittest.TestCase):
         self.assertEqual(r["missing_concepts"], ["twice a day"])
         self.assertIn("three times a day", r["feedback"])
 
+    def test_romanized_telugu(self):
+        # Telugu typed in English letters reaches verify_teachback untranslated (IndicTrans2 passes Latin through).
+        understood = ["bhojanam chesina tharvatha thiskovali", "bhojanam tarvatha", "Bojanam taruvatha teesukovali"]
+        for reply in understood:
+            with self.subTest(reply=reply):
+                self.assertEqual(verify_teachback("take after lunch", reply)["status"], UNDERSTOOD)
+        r = verify_teachback("take after lunch", "bhojanam mundu thiskovali")
+        self.assertEqual(r["status"], NEEDS_CLARIFICATION)
+        self.assertIn("before food", r["feedback"])
+        r = verify_teachback(AFTER_FOOD, "bhojanam tarvatha mandu veskovali")  # verb-final word order
+        self.assertEqual((r["status"], set(r["matched_concepts"])), (UNDERSTOOD, {"after food", "take the medicine"}))
+        r = verify_teachback(AFTER_FOOD, "bhojanam tarvatha mandu thiskovaddu")  # "don't take" is not counted as take
+        self.assertNotIn("take the medicine", r["matched_concepts"])
+
     def test_instruction_without_known_concepts(self):
         r = verify_teachback("Hello, how are you?", "I am fine.")
         self.assertEqual((r["status"], r["score"]), (UNCERTAIN, None))

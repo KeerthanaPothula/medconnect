@@ -11,7 +11,7 @@ Explainable, rule-based concept matching (no ML model, no LLM):
 4. Status: any contradiction or missing concept -> needs_clarification; all matched -> understood;
    nothing recognisable in the instruction, or no concept mentioned at all in the response -> uncertain.
 
-LIMITATION: English only (non-English responses are translated first), small fixed lexicon,
+LIMITATION: English plus a few romanized-Telugu phrases (other non-English responses are translated first), small fixed lexicon,
 instructions phrased as prohibitions ("do not drive") are not modelled. Not a medical judgement.
 """
 import re
@@ -48,8 +48,28 @@ CONCEPTS = {
 }
 
 
+# Romanized Telugu (Telugu typed in English letters) -> English, applied before concept matching.
+# langdetect cannot identify it and IndicTrans2 passes Latin-script input through untranslated, so these
+# words reach this module verbatim. Telugu puts postpositions and verbs last ("food after", "medicine take"),
+# so whole phrases are reordered. Negative verb forms (thiskovaddu = "don't take") are deliberately not matched.
+# ponytail: small fixed spelling lexicon (optional letters cover th/t, aa/a, u variants); extend it as new
+# spellings appear, or add a transliterator if romanized input becomes common.
+_TE_FOOD = r"(?:bh?ojana?mu?|annam|tiffin|tindi)"
+_TE_EAT = r"(?:chesina|chesaka|chesi|tinna|tinnaka|tinte) "
+_TE_TAKE = r"(?:th?ee?s|th?is|vee?s)u?ko(?:vali|ndi|nu|ali)"
+_TE_MEDICINE = r"(?:mandu|mandulu|maa?tra|maa?tralu)"
+ROMANIZED_TELUGU = [
+    (rf"\b{_TE_FOOD} (?:{_TE_EAT})?th?aru?vaa?th?a\b", "after food"),
+    (rf"\b{_TE_FOOD} (?:{_TE_EAT})?mundh?[ue]\b", "before food"),
+    (rf"\b{_TE_MEDICINE} ((?:\w+ ){{0,3}}?){_TE_TAKE}\b", r"take medicine \1"),
+    (rf"\b{_TE_TAKE}\b", "take"),
+]
+
+
 def _normalize(text):
     text = re.sub(r"[^\w\s,.;!?']", " ", (text or "").lower())
+    for pattern, english in ROMANIZED_TELUGU:
+        text = re.sub(pattern, english, text)
     text = re.sub(r"\b(" + "|".join(w for w in NUMBER_WORDS if w not in ("a", "an")) + r")\b",
                   lambda m: str(NUMBER_WORDS[m.group()]), text)
     return " ".join(text.split())
