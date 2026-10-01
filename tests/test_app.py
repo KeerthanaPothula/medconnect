@@ -192,6 +192,27 @@ class TestApp(unittest.TestCase):
         self.assertIn("2 days", text)
 
     @patch.object(streamlit, "audio_input", fake_audio_input)
+    @patch.object(asr, "_load", return_value=object())
+    def test_voice_uses_selected_patient_language(self, load):
+        for name, code in [("English", "en"), ("Telugu", "te"), ("Hindi", "hi"), ("Kannada", "kn"), ("Tamil", "ta")]:
+            with self.subTest(language=name), patch.object(asr, "_transcribe", return_value=("text", code)) as tr:
+                at = AppTest.from_file("../app.py")
+                at.session_state["patient_lang"] = name
+                at.run()
+                self.assertFalse(at.exception)
+                self.assertEqual(tr.call_args.args[2], code)
+                self.assertIn(name, at.success[0].value)
+
+    @patch.object(streamlit, "audio_input", fake_audio_input)
+    @patch.object(asr, "_load", return_value=object())
+    @patch.object(asr, "_transcribe", return_value=("text", "te"))
+    def test_changing_patient_language_retranscribes(self, tr, load):
+        at = AppTest.from_file("../app.py").run()
+        self.assertEqual(tr.call_args.args[2], "en")
+        at.selectbox(key="patient_lang").select("Telugu").run()
+        self.assertEqual((tr.call_count, tr.call_args.args[2]), (2, "te"))
+
+    @patch.object(streamlit, "audio_input", fake_audio_input)
     @patch.object(asr, "_load", side_effect=OSError("model not downloaded"))
     def test_voice_model_unavailable_does_not_crash(self, load):
         with self.assertLogs(asr.log):

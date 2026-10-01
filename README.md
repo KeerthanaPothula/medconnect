@@ -134,8 +134,11 @@ Patient speaks ─▶ st.audio_input (WAV) ─▶ local Whisper ─▶ text in t
 - The model is downloaded once into `models/` (git-ignored) and loaded once per app process.
 - UI: Section 1 has both text input and voice input. When a recording is stopped, it is transcribed once
   and the text is placed into the message box, where it can be corrected. **Process Patient Message**
-  then runs the unchanged Phase 2–3 pipeline. Whisper's language guess is shown for information. The
-  pipeline still uses `detect_language` on the text.
+  then runs the unchanged Phase 2–3 pipeline. The pipeline still uses `detect_language` on the text.
+- **The selected Patient language is passed to Whisper** (`transcribe_audio(audio, language="te")` etc.)
+  instead of letting Whisper guess. Its automatic guess was wrong on a short Telugu recording. Changing the
+  dropdown re-transcribes the current recording. If the patient speaks a different language from the
+  one selected, the transcript will be poor.
 - Errors (no or empty or silent audio, unreadable audio, model unavailable, transcription failure, no speech) are
   shown as short messages. Typing still works.
 

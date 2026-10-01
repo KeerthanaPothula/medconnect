@@ -20,16 +20,17 @@ patient_lang = st.selectbox("Patient language", list(LANGUAGES), key="patient_la
 audio = st.audio_input("Voice input: record, then stop. The speech is transcribed into the message box below.",
                        key="patient_audio")
 # Transcribe each new recording once, before the text box is created so its text can be filled in.
-if audio is not None and audio.file_id != st.session_state.get("transcribed_id"):
-    st.session_state.transcribed_id = audio.file_id
+# Whisper is told the selected patient language (its own guess is unreliable on short Indic clips);
+# changing the language re-transcribes the same recording.
+if audio is not None and (audio.file_id, patient_lang) != st.session_state.get("transcribed_id"):
+    st.session_state.transcribed_id = (audio.file_id, patient_lang)
     with st.spinner("Transcribing... (the first recording loads the speech model and can take a minute)"):
-        st.session_state.asr_result = transcribe_audio(audio)
+        st.session_state.asr_result = transcribe_audio(audio, language=LANGUAGES[patient_lang])
     if st.session_state.asr_result["success"]:
         st.session_state.patient_text = st.session_state.asr_result["text"]
 asr = st.session_state.get("asr_result")
 if asr and asr["success"]:
-    guess = CODE_TO_NAME.get(asr["language"], f"'{asr['language']}', not a supported language")
-    st.success(f"Transcribed locally with Whisper (its language guess: {guess}). "
+    st.success(f"Transcribed locally with Whisper as {CODE_TO_NAME[asr['language']]}. "
                "Check or correct the text, then click Process Patient Message.")
 elif asr:
     st.warning(asr["error"])

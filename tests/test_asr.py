@@ -3,7 +3,7 @@ The real-model check lives in test_asr_real.py."""
 import io
 import unittest
 import wave
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 
@@ -85,6 +85,31 @@ class TestTranscription(unittest.TestCase):
         with patch.object(asr, "_transcribe", return_value=("", "en")):
             r = transcribe_audio(make_wav())
         self.assertEqual((r["success"], r["error"]), (False, asr.NO_SPEECH))
+
+
+class TestWhisperLanguage(unittest.TestCase):
+    """_transcribe with a fake processor/model: a given language goes to generate(), None auto-detects."""
+
+    def run_transcribe(self, language):
+        processor, model = MagicMock(), MagicMock()
+        processor.tokenizer.decode.return_value = "<|en|>"
+        processor.batch_decode.return_value = [" text "]
+        text, used = asr._transcribe((processor, model, MagicMock()), np.zeros(16000, np.float32), language)
+        self.assertEqual(text, "text")
+        return model, used
+
+    def test_given_language_is_passed_to_generate(self):
+        for code in ("en", "te", "hi", "kn", "ta"):
+            with self.subTest(code=code):
+                model, used = self.run_transcribe(code)
+                self.assertEqual(used, code)
+                self.assertEqual(model.generate.call_args.kwargs["language"], code)
+                model.detect_language.assert_not_called()
+
+    def test_no_language_uses_whisper_detection(self):
+        model, used = self.run_transcribe(None)
+        model.detect_language.assert_called_once()
+        self.assertEqual((used, model.generate.call_args.kwargs["language"]), ("en", "en"))
 
 
 class TestModelUnavailable(unittest.TestCase):
