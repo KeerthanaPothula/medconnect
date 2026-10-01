@@ -4,3 +4,4 @@ id,language,patient_text,expected_english,expected_symptoms,expected_duration,so
 3,te,నాకు రెండు రోజులుగా తలనొప్పి ఉంది,I have had a headache for two days,headache,2 days,synthetic
 4,ta,எனக்கு ஒரு வாரமாக இருமல் இருக்கிறது,I have had a cough for a week,cough,1 week,synthetic
 5,en,My stomach hurts and I vomited twice since yesterday,My stomach hurts and I vomited twice since yesterday,stomach pain;vomiting,since yesterday,synthetic
+6,kn,ನನಗೆ ಎರಡು ದಿನಗಳಿಂದ ಜ್ವರ ಇದೆ,I have had fever for two days,fever,2 days,synthetic

@@ -1,10 +1,12 @@
-"""MedConnect Streamlit UI. Phase 2: language detection + rule-based medical extraction."""
+"""MedConnect Streamlit UI. Phase 3: language detection, translation (IndicTrans2), medical extraction."""
 import streamlit as st
 
 from modules.language import LANGUAGES, detect_language
 from modules.medical_nlp import extract_medical_info
+from modules.translation import translate_from_english, translate_to_english
 
 PENDING = "Not implemented yet (planned for a later phase)."
+SPINNER = "Translating... (the first translation loads the model and can take a minute)"
 
 st.set_page_config(page_title="MedConnect", page_icon="🩺", layout="wide")
 st.title("MEDCONNECT")
@@ -22,9 +24,20 @@ st.header("2. Patient Analysis")
 if process:
     if patient_text.strip():
         lang = detect_language(patient_text)
-        # Undetermined language on plain ASCII text (e.g. "fever 2 days") still gets a try with the English rules.
-        rules_lang = lang["code"] or ("en" if patient_text.isascii() else None)
-        st.session_state.analysis = {"lang": lang, "info": extract_medical_info(patient_text, rules_lang)}
+        code = lang["code"]
+        if code == "en" or (code is None and patient_text.isascii()):
+            # English, or short ASCII text like "fever 2 days" that langdetect can't classify: use as-is.
+            english, error = patient_text, None
+        elif code:
+            with st.spinner(SPINNER):
+                tr = translate_to_english(patient_text, code)
+            english, error = tr["text"], tr["error"]
+        else:
+            english, error = None, "Language could not be detected reliably, so the message was not translated."
+        st.session_state.analysis = {
+            "original": patient_text, "lang": lang, "english": english, "error": error,
+            "info": extract_medical_info(english, "en") if english else None,
+        }
     else:
         st.session_state.pop("analysis", None)
         st.warning("Please enter a patient message first.")
@@ -34,26 +47,33 @@ c1, c2 = st.columns(2)
 with c1:
     st.markdown("**Detected Language:**")
     st.write(analysis["lang"]["name"] if analysis else "—")
-with c2:
     st.markdown("**English Translation:**")
-    st.caption("Placeholder — translation is planned for Phase 3.")
+    if not analysis:
+        st.write("—")
+    elif analysis["error"]:
+        st.warning(f"{analysis['error']} English processing is still available.")
+    elif analysis["english"] == analysis["original"]:
+        st.write("Not needed — message processed as English.")
+    else:
+        st.write(analysis["english"])
+with c2:
+    st.markdown("**Original Patient Message:**")
+    st.write(analysis["original"] if analysis else "—")
 
 st.markdown("**Medical Information:**")
-if analysis:
-    info = analysis["info"]
-    if not info["supported"]:
-        st.info("Rule-based extraction currently supports English text only. "
-                "Non-English messages will be analysed via their English translation in Phase 3.")
-    else:
-        c3, c4 = st.columns(2)
-        with c3:
-            st.markdown("Symptoms:")
-            st.markdown("\n".join(f"- {s}" for s in info["symptoms"]) or "No symptoms detected")
-        with c4:
-            st.markdown("Duration:")
-            st.write(info["duration"] or "No duration detected")
-else:
+if not analysis:
     st.write("—")
+elif not analysis["info"]:
+    st.info("No English text is available for this message, so medical information could not be extracted.")
+else:
+    info = analysis["info"]
+    c3, c4 = st.columns(2)
+    with c3:
+        st.markdown("Symptoms:")
+        st.markdown("\n".join(f"- {s}" for s in info["symptoms"]) or "No symptoms detected")
+    with c4:
+        st.markdown("Duration:")
+        st.write(info["duration"] or "No duration detected")
 
 # SECTION 3 — Healthcare Worker
 st.header("3. Healthcare Worker")
@@ -61,10 +81,19 @@ instruction = st.text_area("Instruction for the patient (English)", key="instruc
 target_lang = st.selectbox("Target patient language", list(LANGUAGES), key="target_lang")
 if st.button("Translate Instruction"):
     if instruction.strip():
-        st.info(PENDING)
+        with st.spinner(SPINNER):
+            st.session_state.instruction_result = translate_from_english(instruction, LANGUAGES[target_lang])
     else:
+        st.session_state.pop("instruction_result", None)
         st.warning("Please enter an instruction first.")
-st.text_area("Translated instruction", value="—", disabled=True)
+st.markdown("**Translated Instruction:**")
+result = st.session_state.get("instruction_result")
+if not result:
+    st.write("—")
+elif result["success"]:
+    st.write(result["text"])
+else:
+    st.warning(f"{result['error']} The instruction could not be translated.")
 
 # SECTION 4 — Patient Teach-back
 st.header("4. Patient Teach-back")
